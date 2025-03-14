@@ -42,6 +42,15 @@ def format_bytes(value):
 
 	return f"{value:7.3f}{units[0]}"
 
+def format_bits(value):
+	units = ["B", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q"]
+
+	while value >= 1000 and len(units) > 1:
+		value /= 1000
+		units = units[1:]
+
+	return f"{value:7.3f}{units[0]}"
+
 def format_packets(value):
 	units = ["", "K", "M", "G", "T", "P", "E", "Z", "Y", "R", "Q"]
 
@@ -76,8 +85,8 @@ def format_graph(value, width, limit, left):
 class NetworkSpeed:
 	def __init__(self, interface, rx_speed, tx_speed):
 		self.interface = interface
-		self.rx_speed = rx_speed / 8
-		self.tx_speed = tx_speed / 8
+		self.rx_speed = rx_speed
+		self.tx_speed = tx_speed
 		self.width = 79
 
 	def run(self, interval):
@@ -112,11 +121,15 @@ class NetworkSpeed:
 				time.sleep(wait_s)
 
 	def print(self, rx_bytes, rx_packets, tx_bytes, tx_packets, first=False):
-		left = f"{format_packets(rx_packets):5} {format_bytes(rx_bytes):8} |"
-		right = f"| {format_bytes(tx_bytes):8} {format_packets(tx_packets):5}"
+		if first:
+			left = f"{format_packets(rx_packets):5} {format_bytes(rx_bytes):8} |"
+			right = f"| {format_bytes(tx_bytes):8} {format_packets(tx_packets):5}"
+		else:
+			left = f"{format_packets(rx_packets):5} {format_bits(rx_bytes * 8):8} |"
+			right = f"| {format_bits(tx_bytes * 8):8} {format_packets(tx_packets):5}"
 		available = max(10, self.width - len(left) - len(right)) // 2
-		left = left + "\x1B[32m" + format_graph(rx_bytes, available, self.rx_speed, True) + "\x1B[39m"
-		right = "\x1B[31m" + format_graph(tx_bytes, available, self.tx_speed, False) + "\x1B[39m" + right
+		left = left + "\x1B[32m" + format_graph(rx_bytes * 8, available, self.rx_speed, True) + "\x1B[39m"
+		right = "\x1B[31m" + format_graph(tx_bytes * 8, available, self.tx_speed, False) + "\x1B[39m" + right
 		if first:
 			print(f"\x1B[4m{left}{right}\x1B[24m")
 		else:
@@ -131,5 +144,8 @@ if __name__ == "__main__":
 	parser.add_argument("tx_speed", type=float, metavar="TX_MEGABITS")
 	args = parser.parse_args()
 
-	NetworkSpeed(args.interface, args.rx_speed * 10**6, args.tx_speed * 10**6).run(1)
+	try:
+		NetworkSpeed(args.interface, args.rx_speed * 10**6, args.tx_speed * 10**6).run(1)
+	except KeyboardInterrupt:
+		print()
 
